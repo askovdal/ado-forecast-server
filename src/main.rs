@@ -66,18 +66,18 @@ struct ForecastLink {
 async fn handler(
     State(state): State<Arc<AppState>>,
     TypedHeader(bearer): TypedHeader<Authorization<Bearer>>,
-    query: Query<Params>,
+    Query(params): Query<Params>,
 ) -> Result<impl IntoResponse, StatusCode> {
     if bearer.token() != state.config.auth_token {
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    get_task(state, query)
+    get_task(state, params)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)
 }
 
-async fn get_task(state: Arc<AppState>, Query(params): Query<Params>) -> Result<impl IntoResponse> {
+async fn get_task(state: Arc<AppState>, params: Params) -> Result<impl IntoResponse> {
     let project_id = state
         .project_ids
         .get(&params.project_name)
