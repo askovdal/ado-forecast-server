@@ -1,5 +1,12 @@
 use anyhow::{anyhow, Result};
-use axum::{extract::Query, http::StatusCode, response::IntoResponse, routing::get, Json, Router};
+use axum::{
+    extract::Query,
+    headers::{authorization::Bearer, Authorization},
+    http::StatusCode,
+    response::IntoResponse,
+    routing::get,
+    Json, Router, TypedHeader,
+};
 use dotenv::dotenv;
 use lazy_static::lazy_static;
 use reqwest::Client;
@@ -41,12 +48,21 @@ lazy_static! {
         (String::from("Andel Energi - Adapt\\Andelenergi.dk"), 407834),
         (String::from("Andel Energi - Adapt\\Selvbetjening"), 404023),
     ]);
-    static ref API_KEY: String =
+    static ref AUTH_TOKEN: String =
+        env::var("AUTH_TOKEN").expect("env variable AUTH_TOKEN should be set");
+    static ref FORECAST_API_KEY: String =
         env::var("FORECAST_API_KEY").expect("env variable FORECAST_API_KEY should be set");
     static ref CLIENT: Client = Client::new();
 }
 
-async fn handler(query: Query<Params>) -> Result<impl IntoResponse, StatusCode> {
+async fn handler(
+    TypedHeader(bearer): TypedHeader<Authorization<Bearer>>,
+    query: Query<Params>,
+) -> Result<impl IntoResponse, StatusCode> {
+    if bearer.token() != *AUTH_TOKEN {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
     get_task(query).await.map_err(|_| StatusCode::NOT_FOUND)
 }
 
@@ -61,7 +77,7 @@ async fn get_task(Query(params): Query<Params>) -> Result<impl IntoResponse> {
         .get(format!(
             "https://api.forecast.it/api/v3/projects/{project_id}/tasks"
         ))
-        .header("X-FORECAST-API-KEY", &*API_KEY)
+        .header("X-FORECAST-API-KEY", &*FORECAST_API_KEY)
         .send()
         .await?
         .json::<Vec<Task>>()
