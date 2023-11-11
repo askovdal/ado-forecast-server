@@ -4,7 +4,7 @@ use dotenv::dotenv;
 use lazy_static::lazy_static;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, env, net::SocketAddr};
+use std::{collections::HashMap, env, net::SocketAddr, time::Instant};
 
 #[tokio::main]
 async fn main() {
@@ -55,6 +55,8 @@ async fn get_task(Query(params): Query<Params>) -> Result<impl IntoResponse> {
         .get(&params.project_name)
         .ok_or(anyhow!("No project ID with name {}", params.project_name))?;
 
+    let start_time = Instant::now();
+
     let response = CLIENT
         .get(format!(
             "https://api.forecast.it/api/v3/projects/{project_id}/tasks"
@@ -64,6 +66,10 @@ async fn get_task(Query(params): Query<Params>) -> Result<impl IntoResponse> {
         .await?
         .json::<Vec<Task>>()
         .await?;
+
+    let elapsed_time = start_time.elapsed();
+
+    println!("Time taken to fetch data: {:?}", elapsed_time);
 
     let task = response
         .iter()
