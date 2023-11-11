@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use axum::{
-    extract::Query,
+    extract::{Query, State},
     headers::{authorization::Bearer, Authorization},
     http::StatusCode,
     response::IntoResponse,
@@ -8,16 +8,37 @@ use axum::{
     Json, Router, TypedHeader,
 };
 use dotenv::dotenv;
-use lazy_static::lazy_static;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, env, net::SocketAddr};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+
+#[derive(Clone)]
+struct AppState {
+    project_ids: HashMap<String, u32>,
+    client: Client,
+    config: Config,
+}
+
+#[derive(Deserialize, Clone)]
+struct Config {
+    auth_token: String,
+    forecast_api_key: String,
+}
 
 #[tokio::main]
 async fn main() {
     dotenv().ok();
 
-    let app = Router::new().route("/", get(handler));
+    let state = Arc::new(AppState {
+        project_ids: HashMap::from([
+            (String::from("Andel Energi - Adapt\\Andelenergi.dk"), 407834),
+            (String::from("Andel Energi - Adapt\\Selvbetjening"), 404023),
+        ]),
+        client: Client::new(),
+        config: envy::from_env::<Config>().unwrap(),
+    });
+
+    let app = Router::new().route("/", get(handler)).with_state(state);
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
 
     axum::Server::bind(&addr)
@@ -43,39 +64,32 @@ struct ForecastLink {
     url: String,
 }
 
-lazy_static! {
-    static ref PROJECT_IDS: HashMap<String, u32> = HashMap::from([
-        (String::from("Andel Energi - Adapt\\Andelenergi.dk"), 407834),
-        (String::from("Andel Energi - Adapt\\Selvbetjening"), 404023),
-    ]);
-    static ref AUTH_TOKEN: String =
-        env::var("AUTH_TOKEN").expect("env variable AUTH_TOKEN should be set");
-    static ref FORECAST_API_KEY: String =
-        env::var("FORECAST_API_KEY").expect("env variable FORECAST_API_KEY should be set");
-    static ref CLIENT: Client = Client::new();
-}
-
 async fn handler(
+    State(state): State<Arc<AppState>>,
     TypedHeader(bearer): TypedHeader<Authorization<Bearer>>,
     query: Query<Params>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    if bearer.token() != *AUTH_TOKEN {
+    if bearer.token() != state.config.auth_token {
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    get_task(query).await.map_err(|_| StatusCode::NOT_FOUND)
+    get_task(state, query)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)
 }
 
-async fn get_task(Query(params): Query<Params>) -> Result<impl IntoResponse> {
-    let project_id = PROJECT_IDS
+async fn get_task(state: Arc<AppState>, Query(params): Query<Params>) -> Result<impl IntoResponse> {
+    let project_id = state
+        .project_ids
         .get(&params.project_name)
         .ok_or(anyhow!("No project ID with name {}", params.project_name))?;
 
-    let response = CLIENT
+    let response = state
+        .client
         .get(format!(
             "https://api.forecast.it/api/v3/projects/{project_id}/tasks"
         ))
-        .header("X-FORECAST-API-KEY", &*FORECAST_API_KEY)
+        .header("X-FORECAST-API-KEY", &state.config.forecast_api_key)
         .send()
         .await?
         .json::<Vec<Task>>()
