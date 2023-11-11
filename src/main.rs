@@ -12,14 +12,13 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
-#[derive(Clone)]
 struct AppState {
     project_ids: HashMap<String, u32>,
     client: Client,
     config: Config,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize)]
 struct Config {
     auth_token: String,
     forecast_api_key: String,
