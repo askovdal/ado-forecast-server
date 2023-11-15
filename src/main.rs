@@ -37,7 +37,10 @@ async fn main() {
         config: envy::from_env::<Config>().unwrap(),
     });
 
-    let app = Router::new().route("/", get(handler)).with_state(state);
+    let app = Router::new()
+        .route("/", get(handler))
+        .route("/ping", get(|| async { StatusCode::OK }))
+        .with_state(state);
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
 
     axum::Server::bind(&addr)
