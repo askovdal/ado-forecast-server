@@ -2,15 +2,16 @@ use anyhow::{anyhow, Result};
 use axum::{
     extract::{Query, State},
     headers::{authorization::Bearer, Authorization},
-    http::StatusCode,
+    http::{header::AUTHORIZATION, StatusCode},
     response::IntoResponse,
     routing::get,
     Json, Router, TypedHeader,
 };
 use dotenv::dotenv;
-use reqwest::{header, Client};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use tower_http::cors::{AllowOrigin, CorsLayer};
 
 struct AppState {
     project_ids: HashMap<String, u32>,
@@ -37,8 +38,12 @@ async fn main() {
         config: envy::from_env::<Config>().unwrap(),
     });
 
+    let cors = CorsLayer::new()
+        .allow_headers([AUTHORIZATION])
+        .allow_origin(AllowOrigin::any());
+
     let app = Router::new()
-        .route("/", get(handler).options(cors))
+        .route("/", get(handler).layer(cors))
         .route("/ping", get(|| async { StatusCode::OK }))
         .with_state(state);
 
@@ -77,6 +82,7 @@ async fn handler(
 
     get_task(state, params)
         .await
+        // Ignore whatever the error is and return 404 Not Found
         .map_err(|_| StatusCode::NOT_FOUND)
 }
 
@@ -106,19 +112,5 @@ async fn get_task(state: Arc<AppState>, params: Params) -> Result<impl IntoRespo
         url: format!("https://app.forecast.it/T{}", task.company_task_id),
     };
 
-    Ok((
-        StatusCode::OK,
-        [
-            (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"),
-            (header::ACCESS_CONTROL_ALLOW_HEADERS, "authorization"),
-        ],
-        Json(forecast_link),
-    ))
-}
-
-async fn cors() -> impl IntoResponse {
-    [
-        (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"),
-        (header::ACCESS_CONTROL_ALLOW_HEADERS, "authorization"),
-    ]
+    Ok((StatusCode::OK, Json(forecast_link)))
 }
