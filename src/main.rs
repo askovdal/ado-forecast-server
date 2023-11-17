@@ -8,7 +8,7 @@ use axum::{
     Json, Router, TypedHeader,
 };
 use dotenv::dotenv;
-use reqwest::Client;
+use reqwest::{header, Client};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
@@ -38,11 +38,11 @@ async fn main() {
     });
 
     let app = Router::new()
-        .route("/", get(handler))
+        .route("/", get(handler).options(cors))
         .route("/ping", get(|| async { StatusCode::OK }))
         .with_state(state);
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
 
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
@@ -107,4 +107,11 @@ async fn get_task(state: Arc<AppState>, params: Params) -> Result<impl IntoRespo
     };
 
     Ok((StatusCode::OK, Json(forecast_link)))
+}
+
+async fn cors() -> impl IntoResponse {
+    [
+        (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"),
+        (header::ACCESS_CONTROL_ALLOW_HEADERS, "authorization"),
+    ]
 }
