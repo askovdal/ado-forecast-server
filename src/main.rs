@@ -106,7 +106,14 @@ async fn get_task(state: Arc<AppState>, params: Params) -> Result<impl IntoRespo
         url: format!("https://app.forecast.it/T{}", task.company_task_id),
     };
 
-    Ok((StatusCode::OK, Json(forecast_link)))
+    Ok((
+        StatusCode::OK,
+        [
+            (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"),
+            (header::ACCESS_CONTROL_ALLOW_HEADERS, "authorization"),
+        ],
+        Json(forecast_link),
+    ))
 }
 
 async fn cors() -> impl IntoResponse {
