@@ -33,6 +33,7 @@ async fn main() {
         project_ids: HashMap::from([
             (String::from("Andel Energi - Adapt\\Andelenergi.dk"), 407834),
             (String::from("Andel Energi - Adapt\\Selvbetjening"), 404023),
+            (String::from("Andel Energi - Adapt"), 385854),
         ]),
         client: Client::new(),
         config: envy::from_env::<Config>().unwrap(),
